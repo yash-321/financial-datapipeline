@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "Trade",
+  "namespace": "com.datapipeline.trades",
+  "fields": [
+    {"name": "symbol", "type": "string", "doc": "Stock ticker symbol"},
+    {"name": "trade_id", "type": "string", "doc": "Unique trade identifier"},
+    {"name": "price", "type": "double", "doc": "Trade price"},
+    {"name": "quantity", "type": "double", "doc": "Trade quantity"},
+    {"name": "event_timestamp", "type": "long", "doc": "Event timestamp in milliseconds"},
+    {"name": "ingestion_timestamp", "type": "long", "doc": "Kafka ingestion timestamp in milliseconds"}
+  ]
+}
