@@ -1,5 +1,5 @@
 from confluent_kafka import Producer
-from random import choice, uniform, random
+from random import choice, randint, uniform, random
 import fastavro
 import io
 import json
@@ -89,14 +89,50 @@ class TradeProducer:
         """Flush the producer to ensure all messages are sent."""
         self.producer.flush()
 
+    def send_random_events(self, trade: dict) -> dict:
+        """Send random duplicate, corrected, and older trade events."""
+        counts = {'duplicate': 0, 'corrected': 0, 'older': 0}
+
+        if random() < 0.05:
+            self.send(trade)
+            counts['duplicate'] += 1
+
+        if random() < 0.05:
+            corrected_trade = trade.copy()
+            corrected_trade['price'] += uniform(-0.5, 0.5)
+            corrected_trade['event_timestamp'] += randint(1, 5000)
+            self.send(corrected_trade)
+            counts['corrected'] += 1
+
+        if random() < 0.02:
+            older_trade = trade.copy()
+            older_trade['event_timestamp'] -= 10000  # older event
+            older_trade['ingestion_timestamp'] = int(time.time() * 1000)
+            self.send(older_trade)
+            counts['older'] += 1
+
+        return counts
+
 
 if __name__ == "__main__":
     producer = TradeProducer()
 
+    duplicate, corrected, older = 0, 0, 0
+
     for i in range(10000):
         trade = producer.generate_trade()
         producer.send(trade)
+
+        counts = producer.send_random_events(trade)
+        duplicate += counts['duplicate']
+        corrected += counts['corrected']
+        older += counts['older']
+
         print(f"[{i+1}/10000] Produced: {trade['symbol']} @ {trade['price']:.2f}")
         time.sleep(1 / 50)
 
     producer.flush()
+
+    total_trades = 10000 + duplicate + corrected + older
+    print(f"Finished producing 10,000 trades with {duplicate} duplicates, {corrected} corrections, and {older} older events. Total trades sent: {total_trades}")
+
