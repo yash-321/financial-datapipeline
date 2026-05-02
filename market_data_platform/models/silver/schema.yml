@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_trades
+    description: "Deduplicated trades with latest event per trade_id"
+
+    columns:
+      - name: trade_id
+        tests:
+          - not_null
+          - unique
+
+      - name: symbol
+        tests:
+          - not_null
+
+      - name: event_timestamp
+        tests:
+          - not_null
+
+      - name: ingestion_timestamp
+        tests:
+          - not_null
