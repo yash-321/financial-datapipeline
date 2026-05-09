@@ -1,0 +1,4 @@
+# Producer dependencies
+confluent-kafka>=2.3.0
+fastavro>=1.9.0
+python-dotenv>=1.0.0
