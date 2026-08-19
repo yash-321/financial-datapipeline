@@ -1,51 +1,19 @@
 # =============================================================================
-# Data Pipeline - Unified Docker Compose
+# Data Pipeline - Docker Compose
 # =============================================================================
 # Usage:
-#   make up                    - Start Kafka infrastructure + consumers
-#   make up-airflow            - Start full stack including Airflow
-#   docker compose --profile airflow up -d  - Alternative to above
+#   make up              - Start Kafka infrastructure
+#   make up-consumers    - Start Kafka + trade consumer
+#   docker compose up -d - Start Kafka infrastructure
 #
 # Profiles:
-#   (default)  - Kafka infrastructure only (zookeeper, kafka, kafka-ui, init-kafka)
+#   (default)  - Kafka infrastructure (zookeeper, kafka, kafka-ui, init-kafka)
 #   consumers  - Kafka consumers (trade-consumer)
-#   airflow    - Airflow services (postgres, webserver, scheduler)
+#
+# Architecture:
+#   Producer → Kafka → Consumer → S3 Landing Bucket (Parquet)
+#   Future: Spark jobs will read landing bucket and write to Iceberg tables
 # =============================================================================
-
-x-airflow-common: &airflow-common
-  build:
-    context: ./airflow
-    dockerfile: Dockerfile
-  image: custom-airflow:2.7.3-python3.10
-  env_file:
-    - .env
-  environment: &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
-    # Snowflake (from .env)
-    SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-DATAPIPELINE_WH}
-    SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE:-DATAPIPELINE}
-    SNOWFLAKE_SCHEMA: ${SNOWFLAKE_SCHEMA:-TRADES}
-    SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE:-SYSADMIN}
-    # dbt paths
-    DBT_PROJECT_DIR: /opt/dbt/market_data_platform
-    DBT_PROFILES_DIR: /opt/dbt
-  volumes:
-    - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/utils:/opt/airflow/dags/utils
-    - ./airflow/logs:/opt/airflow/logs
-    - ./dbt/market_data_platform:/opt/dbt/market_data_platform
-    - ./airflow/dbt_profiles:/opt/dbt
-  user: "${AIRFLOW_UID:-50000}:0"
-  networks:
-    - pipeline
-  depends_on:
-    postgres:
-      condition: service_healthy
 
 services:
   # ===========================================================================
@@ -163,92 +131,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ===========================================================================
-  # AIRFLOW (--profile airflow)
-  # ===========================================================================
-  postgres:
-    profiles:
-      - airflow
-    image: postgres:13
-    container_name: airflow-postgres
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
-    networks:
-      - pipeline
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 10s
-      retries: 5
-      start_period: 5s
-    restart: always
-
-  airflow-init:
-    <<: *airflow-common
-    profiles:
-      - airflow
-    container_name: airflow-init
-    user: "${AIRFLOW_UID:-50000}:0"
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        airflow db migrate && \
-        airflow users create \
-          --username admin \
-          --firstname Admin \
-          --lastname User \
-          --role Admin \
-          --email admin@example.com \
-          --password admin || true
-        echo "Airflow initialized successfully!"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  airflow-webserver:
-    <<: *airflow-common
-    profiles:
-      - airflow
-    container_name: airflow-webserver
-    command: bash -c "airflow webserver"
-    ports:
-      - "8081:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  airflow-scheduler:
-    <<: *airflow-common
-    profiles:
-      - airflow
-    container_name: airflow-scheduler
-    command: bash -c "airflow scheduler"
-    healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-
 networks:
   pipeline:
     name: datapipeline_network
     driver: bridge
-
-volumes:
-  postgres-db-volume:

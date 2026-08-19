@@ -3,14 +3,13 @@
 # =============================================================================
 # Quick reference:
 #   make up           - Start Kafka infrastructure
-#   make up-consumers - Start Kafka + consumers
-#   make up-airflow   - Start full stack (Kafka + consumers + Airflow)
+#   make up-consumers - Start Kafka + consumer
 #   make down         - Stop all services
 #   make logs         - Tail all logs
 #   make produce      - Run trade producer locally
 # =============================================================================
 
-.PHONY: help up up-consumers up-airflow down logs clean build produce
+.PHONY: help up up-consumers down logs clean build produce
 
 # Default target
 help:
@@ -19,16 +18,14 @@ help:
 	@echo "  Infrastructure:"
 	@echo "    make up             - Start Kafka infrastructure (zookeeper, kafka, kafka-ui)"
 	@echo "    make up-consumers   - Start Kafka + trade consumer"
-	@echo "    make up-airflow     - Start full stack including Airflow"
 	@echo "    make down           - Stop all services"
 	@echo "    make restart        - Restart all services"
 	@echo ""
 	@echo "  Development:"
-	@echo "    make build          - Build all Docker images"
+	@echo "    make build          - Build Docker images"
 	@echo "    make logs           - Tail logs from all services"
 	@echo "    make logs-kafka     - Tail Kafka logs"
 	@echo "    make logs-consumer  - Tail consumer logs"
-	@echo "    make logs-airflow   - Tail Airflow logs"
 	@echo ""
 	@echo "  Data Production:"
 	@echo "    make produce        - Run trade producer (local, requires venv)"
@@ -56,16 +53,9 @@ up-consumers:
 	@echo "\n✓ Kafka + consumers started"
 	@echo "  Kafka UI: http://localhost:8080"
 
-# Start full stack including Airflow
-up-airflow:
-	docker compose --profile consumers --profile airflow up -d
-	@echo "\n✓ Full stack started"
-	@echo "  Kafka UI: http://localhost:8080"
-	@echo "  Airflow:  http://localhost:8081 (admin/admin)"
-
 # Stop all services
 down:
-	docker compose --profile consumers --profile airflow down
+	docker compose --profile consumers down
 
 # Restart services
 restart: down up
@@ -76,15 +66,11 @@ restart: down up
 
 # Build all images
 build:
-	docker compose --profile consumers --profile airflow build
+	docker compose --profile consumers build
 
 # Build consumer image only
 build-consumer:
 	docker compose build trade-consumer
-
-# Build airflow image only
-build-airflow:
-	docker compose --profile airflow build airflow-webserver
 
 # -----------------------------------------------------------------------------
 # Logs
@@ -92,7 +78,7 @@ build-airflow:
 
 # Tail all logs
 logs:
-	docker compose --profile consumers --profile airflow logs -f
+	docker compose --profile consumers logs -f
 
 # Tail specific service logs
 logs-kafka:
@@ -100,9 +86,6 @@ logs-kafka:
 
 logs-consumer:
 	docker compose --profile consumers logs -f trade-consumer
-
-logs-airflow:
-	docker compose --profile airflow logs -f airflow-webserver airflow-scheduler
 
 # -----------------------------------------------------------------------------
 # Data Production
@@ -132,7 +115,7 @@ produce-docker:
 
 # Show running containers
 ps:
-	docker compose --profile consumers --profile airflow ps
+	docker compose --profile consumers ps
 
 # List Kafka topics
 topics:
@@ -152,12 +135,12 @@ shell-consumer:
 
 # Full cleanup - remove containers, volumes, and build cache
 clean:
-	docker compose --profile consumers --profile airflow down -v --rmi local
+	docker compose --profile consumers down -v --rmi local
 	docker system prune -f
 	@echo "✓ Cleaned up containers, volumes, and build cache"
 
 # Remove only volumes (data)
 clean-data:
-	docker compose --profile consumers --profile airflow down -v
+	docker compose --profile consumers down -v
 	rm -rf data/trades/*
 	@echo "✓ Removed data volumes"

@@ -1,13 +1,13 @@
 # Data Pipeline
 
-Real-time trade data pipeline with Kafka, S3, Snowflake, dbt, and Airflow.
+Real-time trade data pipeline with Kafka streaming to S3 landing bucket.
 
 ## Architecture
 
 ```
-Producer → Kafka → Consumer → S3 (Parquet) → Snowpipe → Snowflake → dbt → Silver Layer
-                                                                      ↓
-                                                              Airflow (orchestration)
+Producer → Kafka → Consumer → S3 Landing Bucket (Parquet)
+                                      ↓
+                        [Future] Spark → Iceberg Tables
 ```
 
 ## Quick Start
@@ -19,15 +19,12 @@ cp .env.example .env
 # 2. Start Kafka infrastructure
 make up
 
-# 3. Start consumer (in separate terminal or with profile)
+# 3. Start consumer (writes Parquet to S3 landing bucket)
 make up-consumers
 
 # 4. Run producer locally
 cd producers && pip install -r requirements.txt
 python -m src.trades
-
-# 5. (Optional) Start Airflow for orchestration
-make up-airflow
 ```
 
 ## Commands
@@ -35,7 +32,6 @@ make up-airflow
 ```bash
 make up              # Start Kafka (zookeeper, kafka, kafka-ui)
 make up-consumers    # Start Kafka + trade consumer
-make up-airflow      # Start full stack including Airflow
 make down            # Stop all services
 make logs            # Tail all logs
 make ps              # Show running containers
@@ -50,14 +46,13 @@ make help            # Show all available commands
 | Kafka         | 9092  | (default)  | Message broker                      |
 | Zookeeper     | 2181  | (default)  | Kafka coordination                  |
 | Kafka UI      | 8080  | (default)  | Web UI: http://localhost:8080       |
-| Trade Consumer| -     | consumers  | Writes Parquet to S3                |
-| Airflow       | 8081  | airflow    | Web UI: http://localhost:8081       |
+| Trade Consumer| -     | consumers  | Writes Parquet to S3 landing bucket |
 
 ## Project Structure
 
 ```
 DataPipeline/
-├── docker-compose.yml      # Unified compose with profiles
+├── docker-compose.yml      # Compose with Kafka + consumer
 ├── Makefile                # Development commands
 ├── .env.example            # Environment template
 │
@@ -80,18 +75,8 @@ DataPipeline/
 │       ├── base.py         # BaseProducer (extend for new topics)
 │       └── trades.py       # TradesProducer with synthetic data
 │
-├── airflow/                # Airflow orchestration
-│   ├── Dockerfile
-│   ├── dags/               # DAG definitions
-│   ├── dbt_profiles/       # dbt connection profiles
-│   └── utils/              # Shared utilities
-│
-├── dbt/
-│   └── market_data_platform/   # dbt project
-│       ├── models/silver/      # Staging models
-│       └── tests/              # Data quality tests
-│
 └── scripts/                # Utility scripts
+    └── check_parquet.py    # Debug Parquet files
 ```
 
 ## Adding New Topics
@@ -136,7 +121,17 @@ All configuration is via environment variables. See `.env.example` for the full 
 | Variable | Description |
 |----------|-------------|
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker address |
-| `S3_BUCKET` | S3 bucket for parquet files |
-| `SNOWFLAKE_*` | Snowflake connection details |
-| `AIRFLOW_UID` | Airflow user ID (default: 50000) |
+| `S3_BUCKET` | S3 bucket for landing zone Parquet files |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for S3 upload |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 upload |
+| `FLUSH_INTERVAL_SECONDS` | Consumer flush interval (default: 30s) |
+
+## Future Architecture
+
+The current pipeline writes raw Parquet files to S3 as a **landing bucket**. 
+
+Next phase will add:
+- **Spark jobs** to read from landing bucket
+- **Iceberg tables** for ACID transactions and time travel
+- **Deduplication** logic in Spark (currently raw data includes duplicates/corrections)
 
