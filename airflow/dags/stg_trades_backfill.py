@@ -30,8 +30,8 @@ default_args = {
     'owner': 'data-engineering',
     'depends_on_past': False,
     'email': ['data-alerts@company.com'],
-    'email_on_failure': True,
-    'email_on_retry': True,
+    'email_on_failure': False,
+    'email_on_retry': False,
     'retries': 3,
     'retry_delay': timedelta(minutes=5),
     'execution_timeout': timedelta(hours=1),
@@ -71,7 +71,7 @@ dag = DAG(
     
     ### Failure Handling:
     - Retries 3 times with 5-minute delay
-    - Full email alerts on failure and retry
+    - No email alerts on failure or retry
     - Execution timeout of 1 hour
     """,
 )
@@ -109,7 +109,7 @@ run_schema_tests = PythonOperator(
     python_callable=run_dbt_command,
     op_kwargs={
         'command': 'test',
-        'select': 'stg_trades',
+        'select': 'test_type:generic,stg_trades',
     },
     dag=dag,
 )
@@ -179,7 +179,8 @@ for r in data.get('results', []):
     name = r.get('unique_id', 'unknown').split('.')[-1]
     time = r.get('execution_time', 0)
     print(f'  - {name}: {status} ({time:.2f}s)')
-print(f\"Total elapsed: {data.get('elapsed_time', 0):.2f}s\")
+elapsed = data.get('elapsed_time', 0)
+print(f'Total elapsed: {elapsed:.2f}s')
 "
         fi
         
@@ -199,7 +200,8 @@ notify_completion = BashOperator(
     bash_command='''
         # This could integrate with Slack, PagerDuty, etc.
         echo "Backfill DAG completed"
-        echo "Status: {{ task_instance.xcom_pull(task_ids='run_heavy_validation', key='return_value') }}"
+        echo "Run ID: {{ run_id }}"
+        echo "Execution Date: {{ ds }}"
     ''',
     trigger_rule=TriggerRule.ALL_DONE,
     dag=dag,

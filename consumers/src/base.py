@@ -53,7 +53,7 @@ class ConsumerConfig:
             group_id=os.getenv(f'{p}KAFKA_GROUP_ID', ''),
             schema_path=os.getenv(f'{p}SCHEMA_PATH', ''),
             output_dir=os.getenv(f'{p}OUTPUT_DIR', ''),
-            flush_interval_seconds=int(os.getenv(f'{p}FLUSH_INTERVAL_SECONDS', '30')),
+            flush_interval_seconds=int(os.getenv(f'{p}FLUSH_INTERVAL_SECONDS', '20')),
             max_buffer_size=int(os.getenv(f'{p}MAX_BUFFER_SIZE', '100000')),
             auto_offset_reset=os.getenv(f'{p}AUTO_OFFSET_RESET', 'earliest'),
         )

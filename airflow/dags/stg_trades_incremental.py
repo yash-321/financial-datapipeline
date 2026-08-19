@@ -29,10 +29,10 @@ default_args = {
     'owner': 'data-engineering',
     'depends_on_past': False,
     'email': ['data-alerts@company.com'],
-    'email_on_failure': True,
+    'email_on_failure': False,
     'email_on_retry': False,
     'retries': 2,
-    'retry_delay': timedelta(minutes=1),
+    'retry_delay': timedelta(seconds=30),
     'execution_timeout': timedelta(minutes=10),
 }
 
@@ -100,7 +100,7 @@ run_schema_tests = PythonOperator(
     python_callable=run_dbt_command,
     op_kwargs={
         'command': 'test',
-        'select': 'stg_trades',
+        'select': 'test_type:generic,stg_trades',
     },
     dag=dag,
 )
