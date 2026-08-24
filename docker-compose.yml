@@ -3,12 +3,14 @@
 # =============================================================================
 # Usage:
 #   make up              - Start Kafka infrastructure
+#   make up-floci        - Start Floci AWS emulator + Floci UI
 #   make up-consumers    - Start Kafka + trade consumer
 #   docker compose up -d - Start Kafka infrastructure
 #
 # Profiles:
 #   (default)  - Kafka infrastructure (zookeeper, kafka, kafka-ui, init-kafka)
-#   consumers  - Kafka consumers (trade-consumer)
+#   floci      - Floci AWS emulator + Floci UI
+#   consumers  - Kafka consumers profile (includes Floci + Floci UI + trade-consumer)
 #
 # Architecture:
 #   Producer → Kafka → Consumer → S3 Landing Bucket (Parquet)
@@ -94,6 +96,52 @@ services:
       "
 
   # ===========================================================================
+  # AWS EMULATOR (--profile consumers)
+  # ===========================================================================
+  floci:
+    profiles:
+      - consumers
+      - floci
+    image: floci/floci:latest
+    container_name: floci
+    ports:
+      - "4566:4566"
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: ${FLOCI_STORAGE_MODE:-hybrid}
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./floci-data:/app/data
+    networks:
+      - pipeline
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  floci-ui:
+    profiles:
+      - consumers
+      - floci
+    image: floci/floci-ui:latest
+    container_name: floci-ui
+    ports:
+      - "4500:4500"
+    environment:
+      FLOCI_ENDPOINT: http://floci:4566
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+    networks:
+      - pipeline
+    depends_on:
+      floci:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
   # CONSUMERS (--profile consumers)
   # ===========================================================================
   trade-consumer:
@@ -118,8 +166,9 @@ services:
       S3_BUCKET: ${S3_BUCKET:-}
       S3_PREFIX: ${S3_PREFIX:-trades}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_ENDPOINT_URL: http://floci:4566
       DELETE_LOCAL_AFTER_UPLOAD: ${DELETE_LOCAL_AFTER_UPLOAD:-false}
     volumes:
       - ./configs/schemas:/app/configs/schemas:ro
@@ -128,6 +177,8 @@ services:
       - pipeline
     depends_on:
       kafka:
+        condition: service_healthy
+      floci:
         condition: service_healthy
     restart: unless-stopped
 

@@ -9,7 +9,7 @@
 #   make produce      - Run trade producer locally
 # =============================================================================
 
-.PHONY: help up up-consumers down logs clean build produce
+.PHONY: help up up-floci up-floci-ui up-consumers down down-floci logs logs-floci-ui clean build produce
 
 # Default target
 help:
@@ -17,15 +17,25 @@ help:
 	@echo ""
 	@echo "  Infrastructure:"
 	@echo "    make up             - Start Kafka infrastructure (zookeeper, kafka, kafka-ui)"
-	@echo "    make up-consumers   - Start Kafka + trade consumer"
+	@echo "    make up-floci       - Start Floci AWS emulator + Floci UI"
+	@echo "    make up-floci-ui    - Start Floci UI only (requires Floci running)"
+	@echo "    make up-consumers   - Start Kafka + Floci + trade consumer"
 	@echo "    make down           - Stop all services"
+	@echo "    make down-floci     - Stop Floci + Floci UI services"
 	@echo "    make restart        - Restart all services"
+	@echo ""
+	@echo "  Floci (AWS Emulator):"
+	@echo "    make create-bucket  - Create landing bucket in Floci"
+	@echo "    make list-buckets   - List buckets in Floci"
+	@echo "    make list-objects   - List objects in landing bucket"
 	@echo ""
 	@echo "  Development:"
 	@echo "    make build          - Build Docker images"
 	@echo "    make logs           - Tail logs from all services"
 	@echo "    make logs-kafka     - Tail Kafka logs"
 	@echo "    make logs-consumer  - Tail consumer logs"
+	@echo "    make logs-floci     - Tail Floci logs"
+	@echo "    make logs-floci-ui  - Tail Floci UI logs"
 	@echo ""
 	@echo "  Data Production:"
 	@echo "    make produce        - Run trade producer (local, requires venv)"
@@ -47,6 +57,19 @@ up:
 	@echo "\n✓ Kafka infrastructure started"
 	@echo "  Kafka UI: http://localhost:8080"
 
+# Start Floci AWS emulator + Floci UI
+up-floci:
+	docker compose --profile floci up -d floci floci-ui
+	@echo "\n✓ Floci + Floci UI started"
+	@echo "  Floci endpoint: http://localhost:4566"
+	@echo "  Floci UI: http://localhost:4500"
+
+# Start Floci UI only (requires Floci running)
+up-floci-ui:
+	docker compose --profile floci up -d floci-ui
+	@echo "\n✓ Floci UI started"
+	@echo "  Floci UI: http://localhost:4500"
+
 # Start Kafka + consumers
 up-consumers:
 	docker compose --profile consumers up -d
@@ -56,6 +79,13 @@ up-consumers:
 # Stop all services
 down:
 	docker compose --profile consumers down
+
+# Stop Floci + Floci UI services
+down-floci:
+	docker compose --profile floci stop floci-ui
+	docker compose --profile floci rm -f floci-ui
+	docker compose --profile floci stop floci
+	docker compose --profile floci rm -f floci
 
 # Restart services
 restart: down up
@@ -86,6 +116,44 @@ logs-kafka:
 
 logs-consumer:
 	docker compose --profile consumers logs -f trade-consumer
+
+logs-floci:
+	docker compose --profile floci logs -f floci
+
+logs-floci-ui:
+	docker compose --profile floci logs -f floci-ui
+
+# -----------------------------------------------------------------------------
+# Floci (AWS Emulator)
+# -----------------------------------------------------------------------------
+
+# Create landing bucket in Floci
+create-bucket:
+	@docker run --rm --network datapipeline_network \
+		-e AWS_ACCESS_KEY_ID=test \
+		-e AWS_SECRET_ACCESS_KEY=test \
+		-e AWS_DEFAULT_REGION=us-east-1 \
+		amazon/aws-cli \
+		--endpoint-url http://floci:4566 s3 mb s3://landing-bucket
+	@echo "✓ Created landing-bucket in Floci"
+
+# List buckets in Floci
+list-buckets:
+	@docker run --rm --network datapipeline_network \
+		-e AWS_ACCESS_KEY_ID=test \
+		-e AWS_SECRET_ACCESS_KEY=test \
+		-e AWS_DEFAULT_REGION=us-east-1 \
+		amazon/aws-cli \
+		--endpoint-url http://floci:4566 s3 ls
+
+# List objects in landing bucket
+list-objects:
+	@docker run --rm --network datapipeline_network \
+		-e AWS_ACCESS_KEY_ID=test \
+		-e AWS_SECRET_ACCESS_KEY=test \
+		-e AWS_DEFAULT_REGION=us-east-1 \
+		amazon/aws-cli \
+		--endpoint-url http://floci:4566 s3 ls s3://landing-bucket/ --recursive
 
 # -----------------------------------------------------------------------------
 # Data Production

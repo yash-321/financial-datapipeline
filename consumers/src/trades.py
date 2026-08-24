@@ -41,6 +41,7 @@ class TradesConsumer(BaseConsumer):
         s3_bucket: Optional[str] = None,
         s3_prefix: str = 'trades',
         s3_region: Optional[str] = None,
+        s3_endpoint_url: Optional[str] = None,
         delete_local_after_upload: bool = False,
         upload_workers: int = 4,
     ):
@@ -51,6 +52,7 @@ class TradesConsumer(BaseConsumer):
             s3_bucket: S3 bucket for uploads (None disables S3)
             s3_prefix: S3 key prefix
             s3_region: AWS region
+            s3_endpoint_url: Custom S3 endpoint URL (for Floci/LocalStack emulators)
             delete_local_after_upload: Delete local files after S3 upload
             upload_workers: Number of async upload workers
         """
@@ -66,6 +68,7 @@ class TradesConsumer(BaseConsumer):
                 bucket=s3_bucket,
                 prefix=s3_prefix,
                 region=s3_region,
+                endpoint_url=s3_endpoint_url,
             )
             if self._s3_uploader.check_connection():
                 self.logger.info(f"S3 upload enabled: s3://{s3_bucket}/{s3_prefix}/")
@@ -165,6 +168,7 @@ def main():
     s3_bucket = os.getenv('S3_BUCKET')
     s3_prefix = os.getenv('S3_PREFIX', 'trades')
     s3_region = os.getenv('AWS_REGION')
+    s3_endpoint_url = os.getenv('AWS_ENDPOINT_URL')
     delete_local = os.getenv('DELETE_LOCAL_AFTER_UPLOAD', 'false').lower() == 'true'
 
     consumer = TradesConsumer(
@@ -172,11 +176,13 @@ def main():
         s3_bucket=s3_bucket,
         s3_prefix=s3_prefix,
         s3_region=s3_region,
+        s3_endpoint_url=s3_endpoint_url,
         delete_local_after_upload=delete_local,
     )
 
     if s3_bucket:
-        consumer.logger.info(f"S3 upload configured: s3://{s3_bucket}/{s3_prefix}/")
+        endpoint_info = f" (endpoint: {s3_endpoint_url})" if s3_endpoint_url else ""
+        consumer.logger.info(f"S3 upload configured: s3://{s3_bucket}/{s3_prefix}/{endpoint_info}")
     else:
         consumer.logger.info("S3 upload disabled (S3_BUCKET not set)")
 

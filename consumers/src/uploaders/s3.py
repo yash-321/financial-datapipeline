@@ -35,6 +35,7 @@ class S3Uploader:
         bucket: str,
         prefix: str = "",
         region: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
     ):
@@ -45,22 +46,25 @@ class S3Uploader:
             bucket: S3 bucket name
             prefix: S3 key prefix (e.g., "trades" -> s3://bucket/trades/...)
             region: AWS region (defaults to AWS_REGION env var or us-east-1)
+            endpoint_url: Custom S3 endpoint URL (for Floci/LocalStack emulators)
             max_retries: Maximum number of upload retry attempts
             retry_delay: Initial delay between retries (exponential backoff)
         """
         self.bucket = bucket
         self.prefix = prefix.strip("/")
         self.region = region or os.environ.get("AWS_REGION", "us-east-1")
+        self.endpoint_url = endpoint_url or os.environ.get("AWS_ENDPOINT_URL")
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-        # Configure boto3 with retries
+        # Configure boto3 with retries and optional path-style for emulators
         config = Config(
             region_name=self.region,
             retries={"max_attempts": max_retries, "mode": "adaptive"},
+            s3={"addressing_style": "path"} if self.endpoint_url else {},
         )
 
-        self._client = boto3.client("s3", config=config)
+        self._client = boto3.client("s3", config=config, endpoint_url=self.endpoint_url)
         self._transfer_config = boto3.s3.transfer.TransferConfig( # type: ignore
             multipart_threshold=8 * 1024 * 1024,  # 8MB
             max_concurrency=10,

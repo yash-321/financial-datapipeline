@@ -35,7 +35,8 @@ Trade data pipeline: Producer → Kafka → Consumer → S3 Landing Bucket (Parq
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | (default) | zookeeper, kafka, kafka-ui, init-kafka | Local Kafka cluster |
-| consumers | trade-consumer | Start consumer container |
+| floci | floci, floci-ui | Start local AWS emulator + Floci UI |
+| consumers | floci, floci-ui, trade-consumer | Start consumer stack with local S3 emulator + cloud console |
 
 ---
 
@@ -141,6 +142,7 @@ Schema changes require updating both locations.
 | Initial | Parquet over CSV | Columnar, better compression | CSV: larger, slower queries |
 | Initial | Manual Kafka commits | At-least-once semantics | Auto-commit: at-most-once risk |
 | Aug 2026 | Archive Airflow/dbt/Snowflake | Transition to Spark/Iceberg | Keep: operational complexity |
+| Aug 2026 | Floci for local S3 | Fast (24ms), MIT-licensed, drop-in | LocalStack: auth token required, heavier |
 
 ---
 
@@ -150,6 +152,201 @@ Schema changes require updating both locations.
 2. **Schema evolution:** Adding optional Avro fields is safe; removing/renaming requires consumer version coordination
 3. **Spark processing:** Read from landing bucket, deduplicate, write to Iceberg tables
 4. **Deduplication:** Future Spark jobs will use trade_id as merge key with latest event_timestamp wins
+
+---
+
+---
+
+## Spark + Iceberg Layer (Bronze)
+
+### Overview
+
+Spark jobs transform landing bucket Parquet files → Iceberg Bronze layer (raw data tier).
+
+**Architecture:**
+```
+S3 Landing (Parquet)  →  Spark  →  Iceberg Bronze Table
+s3://.../trades/           ↓        local.default.raw_trades
+                      Validate
+                        & enrich
+```
+
+### Iceberg Table Spec
+
+**Table:** `local.default.raw_trades`
+
+**Location:** `s3://financial-data-warehouse-587129419094-eu-west-1/warehouse/iceberg/raw_trades/`
+
+**Schema:**
+```
+symbol                 STRING NOT NULL  (stock ticker)
+trade_id               STRING NOT NULL  (unique identifier)
+price                  DOUBLE NOT NULL  (trade price)
+quantity               DOUBLE NOT NULL  (trade quantity)
+event_timestamp        LONG NOT NULL    (event time ms)
+ingestion_timestamp    LONG NOT NULL    (kafka ingestion ms)
+date                   STRING NOT NULL  (partition: YYYY-MM-DD)
+```
+
+**Partitioning:** By `date`, then `symbol`
+- Pruning: `WHERE date = '2026-05-09' AND symbol = 'AAPL'` skips other folders
+- Physical layout: `date=YYYY-MM-DD/symbol=TICKER/part-*.parquet`
+
+**Format:**
+- Compression: Snappy
+- Row group size: Default (128 MB)
+- Iceberg version: 2 (supports ACID updates)
+
+### Why Iceberg (vs Parquet)
+
+| Requirement | Parquet | Iceberg |
+|-------------|---------|---------|
+| ACID writes | ❌ | ✅ |
+| Deduplication (merge) | ❌ | ✅ |
+| Schema evolution | ⚠️ Manual | ✅ Auto |
+| Time travel (snapshots) | ❌ | ✅ |
+| Partition pruning | Manual | ✅ Hidden |
+
+**Decision:** Iceberg chosen for production readiness + deduplication in Silver layer.
+
+### Catalog Options
+
+**Local (Dev):** `./warehouse` SQLite catalog
+- File: `warehouse/metadata/catalog.db`
+- Use for: Development, testing, CI/CD
+- Pros: No AWS required, fast iteration
+- Cons: Single machine only
+
+**AWS Glue (Prod):** Centralized metadata
+- See: `spark/glue_catalog_setup.md`
+- Use for: Multi-team, cross-service access
+- Pros: Central catalog, RBAC, multi-region
+- Cons: AWS account required
+
+### Spark Job Pattern (Incremental)
+
+```python
+# 1. Load configuration
+last_ts = read_config('last_processed_timestamp')
+
+# 2. Read landing: only NEW data
+df_new = spark.read.parquet('s3a://...landing/trades/') \
+    .filter(f'event_timestamp > {last_ts}')
+
+# 3. Validate
+assert df_new.filter('trade_id IS NULL').count() == 0
+
+# 4. Write to Bronze (append mode)
+df_new.write.format("iceberg").mode("append").saveAsTable("bronze_table")
+
+# 5. Update watermark
+new_ts = df_new.agg(max('event_timestamp')).collect()[0][0]
+write_config('last_processed_timestamp', new_ts)
+```
+
+**Idempotent:** Safe to re-run if job fails (same data not duplicated).
+
+### Learning Notebook
+
+**File:** `spark/landing_to_bronze.ipynb`
+
+**12 sections:**
+1. Environment & Spark Session setup
+2. Parquet exploration in S3
+3. Read all landing data recursively
+4. Data quality validation
+5. Understanding Iceberg format
+6. Create Iceberg table
+7. Write landing → Bronze
+8. Validation & querying
+9. Incremental patterns (design)
+10. Error handling & edge cases
+11. Performance optimization
+12. Next steps (Silver layer)
+
+**Time:** 45-60 minutes to complete
+
+**Catalog:** Uses local SQLite (no AWS needed)
+
+### Catalog Configuration
+
+**Local (in notebook):**
+```python
+spark = SparkSession.builder \
+    .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog") \
+    .config("spark.sql.catalog.local.type", "hive") \
+    .config("spark.sql.catalog.local.warehouse", "./warehouse") \
+    .getOrCreate()
+```
+
+**Production (Glue):**
+```python
+.config("spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+.config("spark.sql.catalog.glue_catalog.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog") \
+.config("spark.sql.catalog.glue_catalog.warehouse", "s3://bucket/warehouse") \
+```
+
+### Dependencies
+
+**File:** `spark/requirements.txt`
+```
+pyspark==3.5.0
+pyarrow==14.0.0
+pyiceberg==0.6.1
+boto3==1.28.0
+python-dotenv==1.0.0
+```
+
+### Key Decisions
+
+| Decision | Why | Alternative Rejected |
+|----------|-----|----------------------|
+| Iceberg format | ACID + dedup + time travel | Parquet: no transactions |
+| Local SQLite (dev) | No AWS needed for learning | Glue: overkill for notebook |
+| Partition by (date, symbol) | Matches landing structure + common queries | Symbol only: slower date filters |
+| Append mode (incremental) | Efficient, idempotent | Overwrite: wastes compute |
+| Snappy compression | Fast read speed balance | GZIP: slower; none: larger files |
+
+### Common Operations
+
+```python
+# Query table
+spark.sql("SELECT COUNT(*) FROM local.default.raw_trades").show()
+
+# Incremental append
+df.write.format("iceberg").mode("append").saveAsTable("table")
+
+# Merge for deduplication (Silver layer)
+# See: spark/landing_to_bronze.ipynb Section 9
+
+# Time travel (query past snapshot)
+spark.sql("""
+    SELECT * FROM local.default.raw_trades
+    VERSION AS OF 1  -- version 1
+""")
+
+# Drop and recreate
+spark.sql("DROP TABLE local.default.raw_trades")
+```
+
+### What Would Break If Changed
+
+| Change | Impact | Fix |
+|--------|--------|-----|
+| Partition order flipped | Query patterns change | Update where clauses |
+| Catalog name changed | Spark config must update | See: .config("spark.sql.catalog...") |
+| S3 warehouse path changed | Metadata lost, table inaccessible | Copy warehouse/, update config |
+| Iceberg version v1 → v2 | Can't use merge/upsert | Accept v2 as requirement |
+| Column type changed | Schema mismatch on write | Recreate table with new schema |
+
+### Future Enhancements
+
+1. **Silver layer:** Deduplicate + enrich (transforms Bronze → Silver)
+2. **Gold layer:** Aggregate metrics (Silver → Gold)
+3. **Real-time:** Kafka → Spark Streaming → Iceberg (append-only)
+4. **Multi-region:** Replicate warehouse to other regions
+5. **Schema evolution:** Handle adding/removing columns safely
+6. **Data sharing:** Export to Delta/Snowflake/BigQuery
 
 ---
 
