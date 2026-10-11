@@ -1,0 +1,41 @@
+school_code,state_code,subjects
+SCH001,N_Y,History
+SCH002,FL,Math
+SCH003,T X,Science Music Art PE English CS
+SCH004,W@A,Music Science History Math English
+SCH005,F#L,Art Science Music English
+SCH006,N!Y,Math Art English Science
+SCH007,N_Y,English History CS PE Music
+SCH008,N@Y,CS Art Music History
+SCH009,N#Y,Science History Math Music CS PE
+SCH010,TX,English CS Art History
+SCH011,FL,PE Art Science CS
+SCH012,WA,Math Music History
+SCH013,WA,CS
+SCH014,T-X,History Art Music English Math
+SCH015,C_A,Music
+SCH016,N Y,Music Science Art PE English
+SCH017,T_X,Art Science PE English CS Math
+SCH018,F-L,Math Art History CS
+SCH019,N_Y,Music Art Math PE CS English
+SCH020,F_L,PE History Science Math Art CS
+SCH021,T!X,Art PE Music
+SCH022,T!X,History Science CS English Math
+SCH023,TX,Math Science PE History
+SCH024,N Y,History PE Music Art
+SCH025,W-A,English CS Art
+SCH026,CA,Art PE CS
+SCH027,FL,PE History Music
+SCH028,TX,Math PE Science CS English
+SCH029,F-L,PE
+SCH030,NY,Music Math Science PE
+SCH031,C#A,Math History Music
+SCH032,NY,History Math CS Science English
+SCH033,N Y,CS Music Math
+SCH034,F-L,Music English PE
+SCH035,N Y,Math English Art History CS PE
+SCH036,N-Y,Science Art History CS Math Music
+SCH037,FL,PE CS Music
+SCH038,N$Y,Science Math Art
+SCH039,NY,Art
+SCH040,T$X,History Science Math PE

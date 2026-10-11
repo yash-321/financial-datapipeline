@@ -25,9 +25,21 @@ help:
 	@echo "    make restart        - Restart all services"
 	@echo ""
 	@echo "  Floci (AWS Emulator):"
-	@echo "    make create-bucket  - Create landing bucket in Floci"
-	@echo "    make list-buckets   - List buckets in Floci"
-	@echo "    make list-objects   - List objects in landing bucket"
+	@echo "    make create-bucket       - Create landing bucket in Floci"
+	@echo "    make list-buckets        - List buckets in Floci"
+	@echo "    make list-objects        - List objects in landing bucket"
+	@echo "    make setup-floci-iceberg - Setup Iceberg infrastructure (S3 + Glue databases)"
+	@echo ""
+	@echo "  Spark Jobs:"
+	@echo "    make spark-bronze           - Run landing-to-bronze (full refresh)"
+	@echo "    make spark-bronze-incremental - Run landing-to-bronze (append mode)"
+	@echo "    make spark-bronze-floci     - Run landing-to-bronze with Floci (Glue catalog)"
+	@echo "    make spark-silver-floci     - Run landing-to-silver with Floci (placeholder)"
+	@echo "    make spark-gold-floci       - Run landing-to-gold with Floci (placeholder)"
+	@echo "    make spark-bronze-dry       - Dry run (validate only)"
+	@echo "    make spark-test-config      - Test Spark configuration"
+	@echo "    make spark-test-utils       - Test Spark utilities"
+	@echo "    make verify-floci-iceberg   - List Glue databases and tables"
 	@echo ""
 	@echo "  Development:"
 	@echo "    make build          - Build Docker images"
@@ -155,6 +167,25 @@ list-objects:
 		amazon/aws-cli \
 		--endpoint-url http://floci:4566 s3 ls s3://landing-bucket/ --recursive
 
+# Setup Iceberg infrastructure for medallion architecture (S3 + Glue)
+setup-floci-iceberg:
+	@echo "Setting up Iceberg infrastructure in floci..."
+	@echo ""
+	@echo "Creating S3 buckets..."
+	@aws s3 mb s3://landing-bucket 2>/dev/null || echo "  landing-bucket already exists"
+	@aws s3 mb s3://iceberg-warehouse 2>/dev/null || echo "  iceberg-warehouse already exists"
+	@echo ""
+	@echo "Creating Glue databases for medallion layers..."
+	@aws glue create-database --database-input '{"Name":"iceberg_bronze","Description":"Bronze: raw ingestion"}' 2>/dev/null || echo "  iceberg_bronze already exists"
+	@aws glue create-database --database-input '{"Name":"iceberg_silver","Description":"Silver: cleaned/deduplicated"}' 2>/dev/null || echo "  iceberg_silver already exists"
+	@aws glue create-database --database-input '{"Name":"iceberg_gold","Description":"Gold: analytics-ready"}' 2>/dev/null || echo "  iceberg_gold already exists"
+	@echo ""
+	@echo "✓ Iceberg infrastructure ready!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  make spark-bronze-floci    # Run Spark job"
+	@echo "  make verify-floci-iceberg  # Verify setup"
+
 # -----------------------------------------------------------------------------
 # Data Production
 # -----------------------------------------------------------------------------
@@ -176,6 +207,65 @@ produce-docker:
 		python:3.11-slim \
 		bash -c "pip install -q confluent-kafka fastavro python-dotenv && \
 		         cd /app && python -m producers.src.trades"
+
+# -----------------------------------------------------------------------------
+# Spark Jobs
+# -----------------------------------------------------------------------------
+
+# Run landing-to-bronze job locally (full refresh)
+spark-bronze:
+	@echo "Running Landing to Bronze Spark job..."
+	cd spark/jobs && python landing_to_bronze.py --env local --mode overwrite
+
+# Run landing-to-bronze job (incremental/append)
+spark-bronze-incremental:
+	@echo "Running Landing to Bronze Spark job (incremental)..."
+	cd spark/jobs && python landing_to_bronze.py --env local --mode append
+
+# Run landing-to-bronze job with floci (Glue catalog)
+spark-bronze-floci:
+	@echo "Running Landing to Bronze Spark job with Floci (Glue catalog)..."
+	cd spark/jobs && python landing_to_bronze.py --env floci --layer bronze --mode overwrite
+
+# Run landing-to-silver job with floci (placeholder)
+spark-silver-floci:
+	@echo "Running Landing to Silver Spark job with Floci (Glue catalog)..."
+	@echo "NOTE: Silver job not yet implemented. Use bronze layer for now."
+	cd spark/jobs && python landing_to_bronze.py --env floci --layer silver --mode overwrite
+
+# Run landing-to-gold job with floci (placeholder)
+spark-gold-floci:
+	@echo "Running Landing to Gold Spark job with Floci (Glue catalog)..."
+	@echo "NOTE: Gold job not yet implemented. Use bronze layer for now."
+	cd spark/jobs && python landing_to_bronze.py --env floci --layer gold --mode overwrite
+
+# Dry run (validate without writing)
+spark-bronze-dry:
+	@echo "Running Landing to Bronze Spark job (dry run)..."
+	cd spark/jobs && python landing_to_bronze.py --env local --dry-run
+
+# Test Spark config
+spark-test-config:
+	@echo "Testing Spark job configuration..."
+	cd spark/jobs && python config.py
+
+# Test Spark utilities
+spark-test-utils:
+	@echo "Testing Spark job utilities..."
+	cd spark/jobs && python utils.py
+
+# Verify Floci Iceberg setup (list Glue databases and tables)
+verify-floci-iceberg:
+	@echo "\nGlue Databases:"
+	@aws glue get-databases --query 'DatabaseList[*].Name' --output table 2>/dev/null || echo "  (none or error)"
+	@echo "\nTables in iceberg_bronze:"
+	@aws glue get-tables --database-name iceberg_bronze --query 'TableList[*].Name' --output table 2>/dev/null || echo "  (none or error)"
+	@echo "\nTables in iceberg_silver:"
+	@aws glue get-tables --database-name iceberg_silver --query 'TableList[*].Name' --output table 2>/dev/null || echo "  (none or error)"
+	@echo "\nTables in iceberg_gold:"
+	@aws glue get-tables --database-name iceberg_gold --query 'TableList[*].Name' --output table 2>/dev/null || echo "  (none or error)"
+	@echo "\nS3 Warehouse contents:"
+	@aws s3 ls s3://iceberg-warehouse/ 2>/dev/null || echo "  (none or error)"
 
 # -----------------------------------------------------------------------------
 # Utilities

@@ -1,0 +1,36 @@
+school_code,state_code,subjects
+PSCH001,C*O,History Math English Science Music Economics Art
+PSCH002,N^V,History Math
+PSCH003,NV,Math Geography Economics CS
+PSCH004,OR,Music Art Math CS PE Geography History
+PSCH005,.NV.,Art Geography Music Math English Economics CS
+PSCH006,OR,Math CS
+PSCH007,CO,Science Geography Math History
+PSCH008,OR,PE History Science Art English
+PSCH009,U*T,CS Math Science Music PE
+PSCH010,%NV%,Art PE English Geography
+PSCH011,CO,Art PE History Economics Music
+PSCH012,^NV^,Economics History PE Geography CS Math Music
+PSCH013,*OR*,Science
+PSCH014,*UT*,Economics PE CS Science English
+PSCH015,A%Z,English Music Geography CS History Math Economics
+PSCH016,.NV.,Math CS English Economics PE Science
+PSCH017,*NV*,Geography Art PE
+PSCH018,~NV~,Art English PE CS Music
+PSCH019,^AZ^,Economics Music Math Art Science CS
+PSCH020,C~O,English Science Music Geography Math Art Economics
+PSCH021,N.V,Economics PE Science
+PSCH022,OR,Science Economics English History Music Math
+PSCH023,NV,Geography History Economics CS Music Math PE
+PSCH024,^NV^,English Economics CS
+PSCH025,A%Z,Music CS English Science PE
+PSCH026,%NV%,Science History Economics Geography PE Math
+PSCH027,/OR/,Science Art History Geography
+PSCH028,CO,Economics PE English CS Art Geography Math
+PSCH029,%AZ%,History PE Music Science Art Math Economics
+PSCH030,CO,Geography Music Math History PE English CS
+PSCH031,C%O,Music Economics Science Math
+PSCH032,N~V,CS Art PE Geography Science History
+PSCH033,O/R,English Art CS Economics Music History
+PSCH034,CO,History
+PSCH035,%AZ%,Economics CS Math Art Geography PE Science

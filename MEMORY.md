@@ -348,6 +348,46 @@ spark.sql("DROP TABLE local.default.raw_trades")
 5. **Schema evolution:** Handle adding/removing columns safely
 6. **Data sharing:** Export to Delta/Snowflake/BigQuery
 
+### Production Spark Jobs
+
+**Location:** `spark/jobs/`
+
+**Files:**
+```
+spark/jobs/
+├── __init__.py           # Package marker
+├── config.py             # Configuration classes (S3, Iceberg, Spark)
+├── utils.py              # Reusable utilities
+├── landing_to_bronze.py  # Main job (CLI entry point)
+└── README.md             # Implementation guide
+```
+
+**Environments:**
+- `local`: Uses real AWS S3 + local Iceberg catalog (./warehouse)
+- `floci`: Uses floci S3 emulator (localhost:4566)
+
+**Usage:**
+```bash
+# Full refresh (local)
+make spark-bronze
+
+# Incremental (append)
+make spark-bronze-incremental
+
+# With floci
+make spark-bronze-floci
+
+# Dry run (validate only)
+make spark-bronze-dry
+```
+
+**Design Principles:**
+1. **Modular:** Config, utils, and job logic separated
+2. **Environment-aware:** Single codebase, env-specific config
+3. **Instructional:** Comments guide implementation
+4. **Testable:** Each module can run independently
+
+
 ---
 
 ## Archived Components (git history)
