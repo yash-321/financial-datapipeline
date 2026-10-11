@@ -17,3 +17,5 @@ When proposing changes:
 4. If a new important decision is made, suggest an update to `MEMORY.md`.
 
 Do not store secrets, credentials, API keys, tokens, or personal data in `MEMORY.md`.
+
+Verified architecture documentation is in `docs/architecture/` (start at `docs/architecture/README.md`). Where `MEMORY.md` and the code disagree, `docs/architecture/known-issues.md` lists the drift.

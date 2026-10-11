@@ -1,5 +1,10 @@
 # Project Memory
 
+> Verified architecture docs live in [`docs/architecture/`](docs/architecture/README.md).
+> A few statements below no longer match the code (for example, bronze partitioning, `date` type,
+> incremental idempotency, catalog type). See
+> [known-issues.md → Documentation drift](docs/architecture/known-issues.md#documentation-drift).
+
 ## Overview
 
 Trade data pipeline: Producer → Kafka → Consumer → S3 Landing Bucket (Parquet)

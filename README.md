@@ -197,6 +197,15 @@ All configuration is via environment variables. See `.env.example` for the full 
 | `FLUSH_INTERVAL_SECONDS` | Consumer flush interval (default: 30s) |
 | `FLOCI_STORAGE_MODE` | Floci storage: memory, hybrid, persistent, wal |
 
+## Documentation
+
+- [`docs/architecture/`](docs/architecture/README.md): verified architecture, data flows,
+  data model, decisions, local development, and [known issues](docs/architecture/known-issues.md)
+  (including corrections to the quick start above).
+- [`CLAUDE.md`](CLAUDE.md): instructions for Claude Code sessions. Specialist agents and
+  skills are in `.claude/`.
+- [`spark/jobs/README.md`](spark/jobs/README.md): Spark landing-to-bronze job.
+
 ## Future Architecture
 
 The current pipeline writes raw Parquet files to S3 as a **landing bucket**. 

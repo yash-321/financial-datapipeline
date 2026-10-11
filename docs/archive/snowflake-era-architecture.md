@@ -1,3 +1,10 @@
+> **ARCHIVED. Do not use as a description of the current system.**
+> This document describes the Snowflake / Snowpipe / dbt / Airflow design that was removed in
+> commit `1d83916` (Aug 2026). The current architecture is documented in
+> [`docs/architecture/`](../architecture/overview.md). Some principles here (raw data preserved
+> in landing, at-least-once ingestion, dedup by `trade_id` downstream) still apply; they are
+> carried forward in [`docs/architecture/decisions.md`](../architecture/decisions.md).
+
 # Project Architecture
 
 ## Project Summary
